@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Pong</title>
+    <style>* { padding: 0; margin: 0; }</style>
+    <script src="js/phaser.2.4.2.min.js"></script>
+</head>
+<body>
+<script>
+
+var gameWidth = 480;
+var gameHeight = 320;
+
+var game = new Phaser.Game(gameWidth, gameHeight, Phaser.AUTO, null, {preload: preload, create: create, update: update});
+
+var ball;
+var paddle;
+var bot;
+var star;
+
+ballRadius = 10;
+
+paddleProps = {
+	width: 10,
+	height: 60
+}
+
+var ballVelocityX = -1 * randomInt(125, 175),
+	ballVelocityY = randomSign() * randomInt(125, 175);
+
+var ballUp;
+var newGame = true;
+
+var playerScore = 0;
+var botScore = 0;
+
+function preload() {
+
+	this.stage.backgroundColor = '#eee';
+	game.load.image('ball', 'img/ball.png');
+	game.load.image('paddle', 'img/paddle.png');
+	game.load.image('star', 'img/star.png');
+
+}
+
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomSign() {
+	if (randomInt(0, 1) === 0) {
+		return -1;
+	}
+	else {
+		return 1;
+	}
+}
+
+
+function create() {
+
+	game.physics.startSystem(Phaser.Physics.ARCADE);
+	game.physics.arcade.checkCollision.left = false;
+	game.physics.arcade.checkCollision.right = false;
+
+	ball = game.add.sprite(game.world.width*0.5, game.world.height*0.5, 'ball');
+	ball.anchor.set(0.5);
+	ball.scale.setTo(ballRadius / 10);
+	game.physics.enable(ball, Phaser.Physics.ARCADE);
+	ball.body.collideWorldBounds = true;
+	ball.checkWorldBounds = true;
+	ball.events.onOutOfBounds.add(ballOut);
+
+	ball.body.bounce.set(1);
+	ball.body.velocity.set(ballVelocityX, ballVelocityY);
+
+	paddles = game.add.group();
+	game.physics.enable(paddles, Phaser.Physics.ARCADE);
+	paddles.enableBody = true;
+
+	player = paddles.create(10, game.world.height*0.5, 'paddle');
+	bot = paddles.create(game.world.width - 10, game.world.height*0.5, 'paddle');
+	//bot.body.collideWorldBounds = true;
+	
+	for (var i in paddles.children) {
+		paddles.children[i].anchor.set(0.5);
+		paddles.children[i].scale.setTo(paddleProps.width / 75, paddleProps.height / 10);
+		paddles.children[i].body.immovable = true;
+		paddles.children[i].body.collideWorldBounds = true;
+	}
+
+	star = game.add.sprite(randomInt(100, game.world.width - 100), randomInt(50, game.world.height - 50), 'star');
+	star.anchor.set(0.5);
+	game.physics.enable(star, Phaser.Physics.ARCADE);
+	star.body.immovable = true;
+
+	textStyle = { font: '18px Arial', fill: '#0095DD' };
+	playerScoreText = game.add.text(20, 5, 'You: 0', textStyle);
+	botScoreText = game.add.text(game.world.width - 20, 5, 'Bot: 0', textStyle);
+	botScoreText.anchor.set(1, 0);
+
+	pauseButton = game.add.text(game.world.width*.5, 5, 'Pause', textStyle);
+	pauseButton.anchor.set(0.5, 0);
+	pauseButton.inputEnabled = true;
+
+	pauseButton.events.onInputUp.add(function() {
+		game.paused = true;
+		pauseButton.setText('Click anywhere to resume');
+		game.input.onDown.add(function() {
+			game.paused = false;
+			pauseButton.setText('Pause');
+		});
+	});
+
+	cursors = game.input.keyboard.createCursorKeys();
+
+}
+
+function update() {
+
+	if (newGame) {
+		if (ballVelocityY > 0) {
+			ballUp = true;
+		}
+		else {
+			ballUp = false;
+		}
+
+		newGame = false;
+	}
+
+	game.physics.arcade.collide(ball, paddles, hitPaddle);
+	//player.y = game.input.y;
+
+	game.physics.arcade.overlap(ball, star, hitStar);
+
+	if (cursors.down.isDown) {
+		player.body.velocity.y = 175;
+	}
+	else if (cursors.up.isDown) {
+		player.body.velocity.y = -175;
+	}
+	else {
+		player.body.velocity.y = 0;
+	}
+
+	if (ball.body.velocity.y > 0 && ballUp) {
+
+		if (ball.body.velocity.y >= 100) {
+			bot.body.velocity.y = randomInt(100, 200);
+		}
+		else {
+			bot.body.velocity.y = randomInt(0, 100);
+		}
+
+		ballUp = false;
+	}
+	else if (ball.body.velocity.y < 0 && !ballUp) {
+
+		if (ball.body.velocity.y <= -100) {
+			bot.body.velocity.y = randomInt(-200, -100);
+		}
+		else {
+			bot.body.velocity.y = randomInt(-100, 0);
+		}
+		ballUp = true;
+	}
+
+}
+
+function ballOut() {
+
+	newGame = true;
+	if (ball.body.velocity.x > 0) {
+		playerScore++;
+		playerScoreText.setText('You: ' + playerScore);
+	}
+	else {
+		botScore++;
+		botScoreText.setText('Bot: ' + botScore);
+	}
+	ballVelocityX = -1 * randomInt(125, 175)
+	ballVelocityY = randomSign() * randomInt(125, 175);
+	ball.reset(game.world.width*0.5, game.world.height*0.5);
+	ball.body.velocity.set(ballVelocityX, ballVelocityY);
+	player.reset(10, game.world.height*0.5);
+
+}
+
+function hitPaddle(body1, body2) {
+	body1.body.velocity.y += body2.body.velocity.y * 0.15;
+	//body1.body.gravity.y = body2.body.velocity.y;
+}
+
+function hitStar() {
+	star.reset(randomInt(100, game.world.width - 100), randomInt(50, game.world.height - 50));
+}
+
+</script>
+</body>
+</html>
